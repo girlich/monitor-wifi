@@ -115,18 +115,13 @@ func eap225_get(credentials *Eap225Credential, clients *Eap225StatusClientUsers)
   // Do it
   resp, err = client.Do(req)
 
-  var eap225StatusClientUsers Eap225StatusClientUsers
-
   // Decode the JSON document
-  json.NewDecoder(resp.Body).Decode(&eap225StatusClientUsers)
+  json.NewDecoder(resp.Body).Decode(clients)
 
-  // debug print
-  outB, _ := yaml.Marshal(&eap225StatusClientUsers)
-  fmt.Println(string(outB))
 }
 
 func main() {
-  // Read configuration (AP credentials)
+  // Read configuration with AP credentials
   byteValue, err := ioutil.ReadAll(os.Stdin)
   if err != nil {
     fmt.Println(err)
