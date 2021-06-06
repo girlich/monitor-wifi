@@ -118,6 +118,11 @@ func eap225_get(credentials *Eap225Credential, clients *Eap225StatusClientUsers)
   // Decode the JSON document
   json.NewDecoder(resp.Body).Decode(clients)
 
+  // Normalize MAC
+  for i, _ := range clients.Data {
+    clients.Data[i].MAC = strings.ToLower(clients.Data[i].MAC)
+    clients.Data[i].MAC = strings.Replace(clients.Data[i].MAC, "-", ":", 5)
+  }
 }
 
 func main() {
