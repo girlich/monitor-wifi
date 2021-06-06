@@ -3,8 +3,8 @@ package main
 import (
     "crypto/md5"
     "encoding/hex"
+    "encoding/json"
     "fmt"
-    "io"
     "io/ioutil"
     "log"
     "net/http"
@@ -21,17 +21,52 @@ func GetMD5Hash(text string) string {
    return strings.ToUpper(hex.EncodeToString(hash[:]))
 }
 
-type AccessPoints struct {
-  Eap225s []Eap225 `yaml:"eap225"`
+type Credentials struct {
+  Eap225s []Eap225Credential `yaml:"eap225"`
 }
 
-type Eap225 struct {
+type Eap225Credential struct {
     Host     string `yaml:"host"`
     User     string `yaml:"user"`
     Password string `yaml:"password"`
 }
 
-func eap225_get(credentials *Eap225) {
+type MultiEap225StatusClientUsers struct {
+  AccessPoints []AccessPoint `yaml:"AccessPoint"`
+}
+
+type AccessPoint struct {
+  Name string                  `yaml:"name"`
+  Data Eap225StatusClientUsers `yaml:"clients"`
+}
+
+type Eap225StatusClientUsers struct {
+    Error    int                      `yaml:"error"`
+    Success  bool                     `yaml:"success"`
+    Timeout  string                   `yaml:"timeout"`
+    Data     []Eap225StatusClientUser `yaml:"data"`
+}
+
+type Eap225StatusClientUser struct {
+    Key               int    `yaml:"key"`
+    Hostname          string `yaml:"hostname"`
+    Radio             int    `yaml:"Radio"`
+    MAC               string `yaml:"MAC"`
+    IP                string `yaml:"IP"`
+    SSID              string `yaml:"SSID"`
+    RSSI              int    `yaml:"RSSI"`
+    Rate              string `yaml:"Rate"`
+    Down              int    `yaml:"Down"`
+    Up                int    `yaml:"Up"`
+    ActiveTime        string `yaml:"ActiveTime"`
+    Limit             int    `yaml:"limit"`
+    LimitUpload       int    `yaml:"limit_upload"`
+    LimitUploadUnit   int    `yaml:"limit_upload_unit"`
+    LimitDownload     int    `yaml:"limit_download"`
+    LimitDownloadUnit int    `yaml:"limit_download_unit"`
+}
+
+func eap225_get(credentials *Eap225Credential, clients *Eap225StatusClientUsers) {
   // Parse URL
   u, err := url.Parse("http://" + credentials.Host + "/")
   if err != nil {
@@ -52,18 +87,6 @@ func eap225_get(credentials *Eap225) {
   if err != nil {
     log.Fatal(err)
   }
-  // Read it
-  //content, err := io.ReadAll(resp.Body)
-  //resp.Body.Close()
-  //if err != nil {
-  //  log.Fatal(err)
-  //}
-  // Print it
-  //fmt.Printf("%s", content)
-  // Print cookies
-  for _, cookie := range jar.Cookies(u) {
-    fmt.Printf("1  %s: %s\n", cookie.Name, cookie.Value)
-  }
 
   // Prepare form data
   v1 := url.Values{}
@@ -76,19 +99,6 @@ func eap225_get(credentials *Eap225) {
     log.Fatal(err)
   }
 
-  // Read content
-  //content, err = io.ReadAll(resp.Body)
-  //resp.Body.Close()
-  //if err != nil {
-  //  log.Fatal(err)
- // }
- // fmt.Printf("%s", content)
-
-  // Print cookies
-  for _, cookie := range jar.Cookies(u) {
-    fmt.Printf("2  %s: %s\n", cookie.Name, cookie.Value)
-  }
-
   // Create an empty request
   req, err := http.NewRequest("GET", "http://" + credentials.Host + "/data/status.client.user.json", nil)
   if err != nil {
@@ -98,33 +108,40 @@ func eap225_get(credentials *Eap225) {
   // Prepare query data
   q := req.URL.Query()
   q.Add("operation","load")
-  q.Add("_","1588366765131")
+//  q.Add("_","1588366765131")
   req.URL.RawQuery = q.Encode()
   req.Header.Add("Referer", "http://" + credentials.Host + "/")
-  fmt.Println(req.URL.String())
 
   // Do it
   resp, err = client.Do(req)
 
-  // Read content
-  content, err := io.ReadAll(resp.Body)
-  resp.Body.Close()
-  if err != nil {
-    log.Fatal(err)
-  }
-  // Print it
-  fmt.Printf("%s", content)
+  var eap225StatusClientUsers Eap225StatusClientUsers
+
+  // Decode the JSON document
+  json.NewDecoder(resp.Body).Decode(&eap225StatusClientUsers)
+
+  // debug print
+  outB, _ := yaml.Marshal(&eap225StatusClientUsers)
+  fmt.Println(string(outB))
 }
 
 func main() {
+  // Read configuration (AP credentials)
   byteValue, err := ioutil.ReadAll(os.Stdin)
   if err != nil {
     fmt.Println(err)
   }
-  var accesspoints AccessPoints
-  yaml.Unmarshal(byteValue, &accesspoints)
-  for i := 0 ; i<len(accesspoints.Eap225s) ; i++ {
-    eap225_get(&accesspoints.Eap225s[i])
+  var credentials Credentials
+  yaml.Unmarshal(byteValue, &credentials)
+
+  var multiEap225StatusClientUsers MultiEap225StatusClientUsers
+  multiEap225StatusClientUsers.AccessPoints = make([]AccessPoint, len(credentials.Eap225s))
+  for i := 0 ; i<len(credentials.Eap225s) ; i++ {
+    multiEap225StatusClientUsers.AccessPoints[i].Name=credentials.Eap225s[i].Host
+    eap225_get(&credentials.Eap225s[i],&(multiEap225StatusClientUsers.AccessPoints[i].Data))
   }
+
+  multiEap225StatusClientUsersB, _ := yaml.Marshal(&multiEap225StatusClientUsers)
+    fmt.Println(string(multiEap225StatusClientUsersB))
 }
 
