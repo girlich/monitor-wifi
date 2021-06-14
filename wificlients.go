@@ -7,6 +7,7 @@ import (
     "fmt"
     "io/ioutil"
     "log"
+    "net"
     "net/http"
     "net/http/cookiejar"
     "net/url"
@@ -141,14 +142,22 @@ func eap225_to_network(credentials *Eap225Credential, clients *Eap225StatusClien
   for i, _ := range clients.Data {
     var nc NetworkClient
 
-    // Copy Hostname verbatim
-    nc.Hostname = clients.Data[i].Hostname
+    // Copy IP verbatim
+    nc.IP = clients.Data[i].IP
+
+    // Get canonical hostname from IP address
+    names, err := net.LookupAddr(nc.IP)
+    if err != nil {
+      nc.Hostname = "unknown host"
+    } else {
+      nc.Hostname = names[0]
+      if strings.HasSuffix(nc.Hostname, ".") {
+        nc.Hostname = nc.Hostname[:len(nc.Hostname)-1]
+      }
+    }
 
     // Normalize MAC
     nc.MAC = strings.Replace(strings.ToLower(clients.Data[i].MAC), "-", ":", 5)
-
-    // Copy IP verbatim
-    nc.IP = clients.Data[i].IP
 
     // Linktype is WiFi
     nc.LinkType = "IEEE802_11"
