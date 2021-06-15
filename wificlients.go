@@ -1,6 +1,7 @@
 package main
 
 import (
+    "bytes"
     "crypto/md5"
     "encoding/hex"
     "encoding/json"
@@ -12,6 +13,7 @@ import (
     "net/http/cookiejar"
     "net/url"
     "os"
+    "sort"
     "strings"
 
     "gopkg.in/yaml.v2"
@@ -201,6 +203,15 @@ func main() {
       &(multiEap225StatusClientUsers.AccessPoints[i].Data),
       &NetworkClients)
   }
+
+  // sort NetworkClients according to the IP
+  sort.Slice(
+    NetworkClients,
+    func(i, j int) bool {
+      return bytes.Compare(
+          net.ParseIP(NetworkClients[i].IP), net.ParseIP(NetworkClients[j].IP))<0
+    })
+
   networkClientsB, _ := yaml.Marshal(&NetworkClients)
   fmt.Println(string(networkClientsB))
 }
