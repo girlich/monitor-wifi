@@ -24,14 +24,12 @@ func GetMD5Hash(text string) string {
    return strings.ToUpper(hex.EncodeToString(hash[:]))
 }
 
-type Credentials struct {
-  Eap225s []Eap225Credential `yaml:"eap225"`
-}
-
-type Eap225Credential struct {
+type Credential struct {
+    Type     string `yaml:"type"`
     Host     string `yaml:"host"`
     User     string `yaml:"user"`
     Password string `yaml:"password"`
+    Command  string `yaml:"command"`
 }
 
 type MultiEap225StatusClientUsers struct {
@@ -87,7 +85,7 @@ type NetworkClient struct {
     WiFi       WiFiParam `yaml:"WiFi,omitempty"`
 }
 
-func eap225_get(credentials *Eap225Credential, clients *Eap225StatusClientUsers) {
+func eap225_get(credentials *Credential, clients *Eap225StatusClientUsers) {
   // Parse URL
   u, err := url.Parse("http://" + credentials.Host + "/")
   if err != nil {
@@ -140,7 +138,7 @@ func eap225_get(credentials *Eap225Credential, clients *Eap225StatusClientUsers)
   json.NewDecoder(resp.Body).Decode(clients)
 }
 
-func eap225_to_network(credentials *Eap225Credential, clients *Eap225StatusClientUsers, networkClients *[]NetworkClient) {
+func eap225_to_network(credentials *Credential, clients *Eap225StatusClientUsers, networkClients *[]NetworkClient) {
   for i, _ := range clients.Data {
     var nc NetworkClient
 
@@ -190,16 +188,17 @@ func main() {
   if err != nil {
     fmt.Println(err)
   }
-  var credentials Credentials
+
+  var credentials []Credential
   yaml.Unmarshal(byteValue, &credentials)
 
   var multiEap225StatusClientUsers MultiEap225StatusClientUsers
-  multiEap225StatusClientUsers.AccessPoints = make([]AccessPoint, len(credentials.Eap225s))
+  multiEap225StatusClientUsers.AccessPoints = make([]AccessPoint, len(credentials))
   var NetworkClients []NetworkClient
-  for i := 0 ; i<len(credentials.Eap225s) ; i++ {
-    multiEap225StatusClientUsers.AccessPoints[i].Name=credentials.Eap225s[i].Host
-    eap225_get(&credentials.Eap225s[i],&(multiEap225StatusClientUsers.AccessPoints[i].Data))
-    eap225_to_network(&credentials.Eap225s[i],
+  for i := 0 ; i<len(credentials) ; i++ {
+    multiEap225StatusClientUsers.AccessPoints[i].Name=credentials[i].Host
+    eap225_get(&credentials[i],&(multiEap225StatusClientUsers.AccessPoints[i].Data))
+    eap225_to_network(&credentials[i],
       &(multiEap225StatusClientUsers.AccessPoints[i].Data),
       &NetworkClients)
   }
