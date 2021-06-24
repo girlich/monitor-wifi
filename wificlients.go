@@ -185,10 +185,13 @@ func main() {
 
   var NetworkClients []NetworkClient
   for i := 0 ; i<len(credentials) ; i++ {
-    if credentials[i].Type == "eap225" {
-      var Data Eap225StatusClientUsers
-      eap225_get(&credentials[i],&Data)
-      eap225_to_network(&credentials[i], &Data, &NetworkClients)
+    switch credentials[i].Type {
+      case "eap225":
+        var Data Eap225StatusClientUsers
+        eap225_get(&credentials[i],&Data)
+        eap225_to_network(&credentials[i], &Data, &NetworkClients)
+      default:
+	fmt.Fprintf(os.Stderr, "unknown AP type: %s\n", credentials[i].Type)
     }
   }
 
