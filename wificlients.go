@@ -13,6 +13,7 @@ import (
     "net/http/cookiejar"
     "net/url"
     "os"
+    "os/exec"
     "sort"
     "strings"
 
@@ -25,11 +26,11 @@ func GetMD5Hash(text string) string {
 }
 
 type Credential struct {
-    Type     string `yaml:"type"`
-    Host     string `yaml:"host"`
-    User     string `yaml:"user"`
-    Password string `yaml:"password"`
-    Command  string `yaml:"command"`
+    Type     string   `yaml:"type"`
+    Host     string   `yaml:"host"`
+    User     string   `yaml:"user"`
+    Password string   `yaml:"password"`
+    Command  []string `yaml:"command"`
 }
 
 type Eap225StatusClientUsers struct {
@@ -56,6 +57,29 @@ type Eap225StatusClientUser struct {
     LimitUploadUnit   int    `yaml:"limit_upload_unit"`
     LimitDownload     int    `yaml:"limit_download"`
     LimitDownloadUnit int    `yaml:"limit_download_unit"`
+}
+
+type IwStationDump struct {
+    MAC            string
+    Interface      string
+    InactiveTimeMs int
+    Up             int
+    UpPackets      int
+    Down           int
+    DownPackets    int
+    DownErrors     int
+    RSSI           int
+    Rate           string
+    UpRate         string
+    Authorized     bool
+    Authenticated  bool
+    Associated     bool
+    WMM_WME        bool
+    TDLS_peer      bool
+    DTIM_period    int
+    BeaconInterval int
+    ShortSlotTime  bool
+    ActiveTime     int
 }
 
 type WiFiParam struct {
@@ -173,6 +197,14 @@ func eap225_to_network(credentials *Credential, clients *Eap225StatusClientUsers
   }
 }
 
+func iw_get(credentials *Credential, clients *IwStationDump) {
+  out, err := exec.Command(credentials.Command[0], credentials.Command[1:]...).Output()
+  if err != nil {
+    log.Fatal(err)
+  }
+  fmt.Printf("%s\n", out)
+}
+
 func main() {
   // Read configuration with AP credentials
   byteValue, err := ioutil.ReadAll(os.Stdin)
@@ -190,6 +222,9 @@ func main() {
         var Data Eap225StatusClientUsers
         eap225_get(&credentials[i],&Data)
         eap225_to_network(&credentials[i], &Data, &NetworkClients)
+      case "iw":
+	var Data IwStationDump
+        iw_get(&credentials[i], &Data)
       default:
 	fmt.Fprintf(os.Stderr, "unknown AP type: %s\n", credentials[i].Type)
     }
