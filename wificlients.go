@@ -32,15 +32,6 @@ type Credential struct {
     Command  string `yaml:"command"`
 }
 
-type MultiEap225StatusClientUsers struct {
-  AccessPoints []AccessPoint `yaml:"AccessPoint"`
-}
-
-type AccessPoint struct {
-  Name string                  `yaml:"name"`
-  Data Eap225StatusClientUsers `yaml:"clients"`
-}
-
 type Eap225StatusClientUsers struct {
     Error    int                      `yaml:"error"`
     Success  bool                     `yaml:"success"`
@@ -192,15 +183,13 @@ func main() {
   var credentials []Credential
   yaml.Unmarshal(byteValue, &credentials)
 
-  var multiEap225StatusClientUsers MultiEap225StatusClientUsers
-  multiEap225StatusClientUsers.AccessPoints = make([]AccessPoint, len(credentials))
   var NetworkClients []NetworkClient
   for i := 0 ; i<len(credentials) ; i++ {
-    multiEap225StatusClientUsers.AccessPoints[i].Name=credentials[i].Host
-    eap225_get(&credentials[i],&(multiEap225StatusClientUsers.AccessPoints[i].Data))
-    eap225_to_network(&credentials[i],
-      &(multiEap225StatusClientUsers.AccessPoints[i].Data),
-      &NetworkClients)
+    if credentials[i].Type == "eap225" {
+      var Data Eap225StatusClientUsers
+      eap225_get(&credentials[i],&Data)
+      eap225_to_network(&credentials[i], &Data, &NetworkClients)
+    }
   }
 
   // sort NetworkClients according to the IP
