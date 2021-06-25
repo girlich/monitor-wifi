@@ -1,11 +1,13 @@
 package main
 
 import (
+    "bufio"
     "bytes"
     "crypto/md5"
     "encoding/hex"
     "encoding/json"
     "fmt"
+    "io"
     "io/ioutil"
     "log"
     "net"
@@ -198,11 +200,20 @@ func eap225_to_network(credentials *Credential, clients *Eap225StatusClientUsers
 }
 
 func iw_get(credentials *Credential, clients *IwStationDump) {
-  out, err := exec.Command(credentials.Command[0], credentials.Command[1:]...).Output()
+  cmd := exec.Command(credentials.Command[0], credentials.Command[1:]...)
+  stdout, err := cmd.StdoutPipe()
   if err != nil {
     log.Fatal(err)
   }
-  fmt.Printf("%s\n", out)
+  cmd.Start()
+  buf := bufio.NewReader(stdout)
+  for {
+    line, _, err := buf.ReadLine()
+    if err == io.EOF {
+      break
+    }
+    fmt.Printf(">>%s<<\n", string(line))
+  } 
 }
 
 func main() {
