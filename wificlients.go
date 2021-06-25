@@ -16,6 +16,7 @@ import (
     "net/url"
     "os"
     "os/exec"
+    "regexp"
     "sort"
     "strings"
 
@@ -199,7 +200,7 @@ func eap225_to_network(credentials *Credential, clients *Eap225StatusClientUsers
   }
 }
 
-func iw_get(credentials *Credential, clients *IwStationDump) {
+func iw_get(credentials *Credential, clients *[]IwStationDump) {
   cmd := exec.Command(credentials.Command[0], credentials.Command[1:]...)
   stdout, err := cmd.StdoutPipe()
   if err != nil {
@@ -207,13 +208,28 @@ func iw_get(credentials *Credential, clients *IwStationDump) {
   }
   cmd.Start()
   buf := bufio.NewReader(stdout)
+  var isd *IwStationDump = nil
   for {
     line, _, err := buf.ReadLine()
     if err == io.EOF {
       break
     }
     fmt.Printf(">>%s<<\n", string(line))
-  } 
+    re := regexp.MustCompile(`Station ([0-9a-f:]{17}) \(on `)
+    resMAC := re.FindStringSubmatch(string(line))
+    if resMAC != nil {
+      if isd != nil {
+        // store the old content
+        *clients = append(*clients, *isd)
+      }
+      // get new stoagre
+      isd = &IwStationDump{}
+      isd.MAC = resMAC[1]
+    }
+  }
+  if isd != nil {
+    *clients = append(*clients, *isd)
+  }
 }
 
 func main() {
@@ -234,8 +250,12 @@ func main() {
         eap225_get(&credentials[i],&Data)
         eap225_to_network(&credentials[i], &Data, &NetworkClients)
       case "iw":
-	var Data IwStationDump
+	var Data []IwStationDump
         iw_get(&credentials[i], &Data)
+        fmt.Printf("len(IwStationDump)=%d\n", len(Data))
+        for i, _ := range Data {
+          fmt.Printf("MAC=%s\n", Data[i].MAC)
+        }
       default:
 	fmt.Fprintf(os.Stderr, "unknown AP type: %s\n", credentials[i].Type)
     }
