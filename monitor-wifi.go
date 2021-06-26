@@ -2,7 +2,6 @@ package main
 
 import (
     "bufio"
-    "bytes"
     "crypto/md5"
     "encoding/hex"
     "encoding/json"
@@ -17,7 +16,7 @@ import (
     "os"
     "os/exec"
     "regexp"
-    "sort"
+    "strconv"
     "strings"
 
     "gopkg.in/yaml.v2"
@@ -52,8 +51,8 @@ type Eap225StatusClientUser struct {
     SSID              string `yaml:"SSID"`
     RSSI              int    `yaml:"RSSI"`
     Rate              string `yaml:"Rate"`
-    Down              int    `yaml:"Down"`
-    Up                int    `yaml:"Up"`
+    Down              int64  `yaml:"Down"`
+    Up                int64  `yaml:"Up"`
     ActiveTime        string `yaml:"ActiveTime"`
     Limit             int    `yaml:"limit"`
     LimitUpload       int    `yaml:"limit_upload"`
@@ -66,9 +65,9 @@ type IwStationDump struct {
     MAC            string
     Interface      string
     InactiveTimeMs int
-    Up             int
+    Up             int64
     UpPackets      int
-    Down           int
+    Down           int64
     DownPackets    int
     DownErrors     int
     RSSI           int
@@ -92,11 +91,11 @@ type WiFiParam struct {
 }
 
 type NetworkClient struct {
-    Hostname   string `yaml:"hostname"`
+    Hostname   string `yaml:"hostname,omitempty"`
     MAC        string `yaml:"MAC"`
-    IP         string `yaml:"IP"`
-    Down       int    `yaml:"Down"`
-    Up         int    `yaml:"Up"`
+    IP         string `yaml:"IP,omitempty"`
+    Down       int64  `yaml:"Down"`
+    Up         int64  `yaml:"Up"`
     ActiveTime string `yaml:"ActiveTime"`
     LinkType   string `yaml:"linktype"`
     Upstream   string `yaml:"Upstream"`
@@ -209,26 +208,70 @@ func iw_get(credentials *Credential, clients *[]IwStationDump) {
   cmd.Start()
   buf := bufio.NewReader(stdout)
   var isd *IwStationDump = nil
+  reMAC := regexp.MustCompile(`Station ([0-9a-f:]{17}) \(on `)
+  reUp := regexp.MustCompile(`rx bytes:\s+(\d+)`)
+  reDown := regexp.MustCompile(`tx bytes:\s+(\d+)`)
+  reActiveTime := regexp.MustCompile(`connected time:\s+(\d+)`)
+  reRSSI := regexp.MustCompile(`signal:\s+(-\d+)`)
+  reRate := regexp.MustCompile(`rx bitrate:\s+(\d+\.\d+)`)
   for {
     line, _, err := buf.ReadLine()
     if err == io.EOF {
       break
     }
-    fmt.Printf(">>%s<<\n", string(line))
-    re := regexp.MustCompile(`Station ([0-9a-f:]{17}) \(on `)
-    resMAC := re.FindStringSubmatch(string(line))
-    if resMAC != nil {
+    lineS := string(line)
+    // fmt.Printf(">>%s<<\n", lineS)
+    res := reMAC.FindStringSubmatch(lineS)
+    if res != nil {
       if isd != nil {
         // store the old content
         *clients = append(*clients, *isd)
       }
       // get new stoagre
       isd = &IwStationDump{}
-      isd.MAC = resMAC[1]
+      isd.MAC = res[1]
+    }
+    res = reUp.FindStringSubmatch(lineS)
+    if res != nil {
+      isd.Up, _ = strconv.ParseInt(res[1], 10, 64)
+    }
+    res = reDown.FindStringSubmatch(lineS)
+    if res != nil {
+      isd.Down, _ = strconv.ParseInt(res[1], 10, 64)
+    }
+    res = reActiveTime.FindStringSubmatch(lineS)
+    if res != nil {
+      isd.ActiveTime, _ = strconv.Atoi(res[1])
+    }
+    res = reRSSI.FindStringSubmatch(lineS)
+    if res != nil {
+      isd.RSSI, _ = strconv.Atoi(res[1])
+    }
+    res = reRate.FindStringSubmatch(lineS)
+    if res != nil {
+      isd.Rate = res[1]
     }
   }
+  // append last one
   if isd != nil {
     *clients = append(*clients, *isd)
+  }
+}
+
+func iw_to_network(credentials *Credential, iwClients *[]IwStationDump, networkClients *[]NetworkClient) {
+  for _, iw := range *iwClients {
+    var nc NetworkClient
+    nc.MAC = iw.MAC
+    nc.Up = iw.Up
+    nc.Down = iw.Down
+    nc.LinkType = "IEEE802_11"
+    nc.ActiveTime = strconv.Itoa(iw.ActiveTime)
+    nc.Upstream = credentials.Host
+    nc.WiFi.Radio = 0 // TODO: my raspi can only 2.4 GHz
+    nc.WiFi.RSSI = iw.RSSI
+    nc.WiFi.Rate = iw.Rate
+
+    *networkClients = append(*networkClients, nc)
   }
 }
 
@@ -252,22 +295,11 @@ func main() {
       case "iw":
 	var Data []IwStationDump
         iw_get(&credentials[i], &Data)
-        fmt.Printf("len(IwStationDump)=%d\n", len(Data))
-        for i, _ := range Data {
-          fmt.Printf("MAC=%s\n", Data[i].MAC)
-        }
+        iw_to_network(&credentials[i], &Data, &NetworkClients)
       default:
 	fmt.Fprintf(os.Stderr, "unknown AP type: %s\n", credentials[i].Type)
     }
   }
-
-  // sort NetworkClients according to the IP
-  sort.Slice(
-    NetworkClients,
-    func(i, j int) bool {
-      return bytes.Compare(
-          net.ParseIP(NetworkClients[i].IP), net.ParseIP(NetworkClients[j].IP))<0
-    })
 
   networkClientsB, _ := yaml.Marshal(&NetworkClients)
   fmt.Println(string(networkClientsB))
