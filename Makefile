@@ -1,5 +1,5 @@
 all:
 
-wificlients: wificlients.go
+monitor-wifi: monitor-wifi.go
 	go build $<
 
