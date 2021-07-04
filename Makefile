@@ -13,6 +13,9 @@ cross: $(BINS)
 $(BINS) : $(B)_% : $(B).go
 	GOARCH=$* $(ADD_$*) go build -o $@ $<
 
+indent:
+	go fmt
+
 clean:
 	rm -f $(BINS) $(B)
 
