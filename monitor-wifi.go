@@ -275,6 +275,23 @@ func iw_to_network(credentials *Credential, iwClients *[]IwStationDump, networkC
 	}
 }
 
+func CollectNetworkClients(credentials []Credential, NetworkClients *[]NetworkClient) {
+	for i := 0; i < len(credentials); i++ {
+		switch credentials[i].Type {
+		case "eap225":
+			var Data Eap225StatusClientUsers
+			eap225_get(&credentials[i], &Data)
+			eap225_to_network(&credentials[i], &Data, NetworkClients)
+		case "iw":
+			var Data []IwStationDump
+			iw_get(&credentials[i], &Data)
+			iw_to_network(&credentials[i], &Data, NetworkClients)
+		default:
+			fmt.Fprintf(os.Stderr, "unknown AP type: %s\n", credentials[i].Type)
+		}
+	}
+}
+
 func main() {
 	// Read configuration with AP credentials
 	byteValue, err := ioutil.ReadAll(os.Stdin)
@@ -286,20 +303,7 @@ func main() {
 	yaml.Unmarshal(byteValue, &credentials)
 
 	var NetworkClients []NetworkClient
-	for i := 0; i < len(credentials); i++ {
-		switch credentials[i].Type {
-		case "eap225":
-			var Data Eap225StatusClientUsers
-			eap225_get(&credentials[i], &Data)
-			eap225_to_network(&credentials[i], &Data, &NetworkClients)
-		case "iw":
-			var Data []IwStationDump
-			iw_get(&credentials[i], &Data)
-			iw_to_network(&credentials[i], &Data, &NetworkClients)
-		default:
-			fmt.Fprintf(os.Stderr, "unknown AP type: %s\n", credentials[i].Type)
-		}
-	}
+	CollectNetworkClients(credentials, &NetworkClients)
 
 	networkClientsB, _ := yaml.Marshal(&NetworkClients)
 	fmt.Println(string(networkClientsB))
