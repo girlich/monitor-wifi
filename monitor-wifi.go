@@ -5,6 +5,7 @@ import (
 	"crypto/md5"
 	"encoding/hex"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -19,6 +20,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"gopkg.in/yaml.v2"
 )
 
@@ -292,7 +295,67 @@ func CollectNetworkClients(credentials []Credential, NetworkClients *[]NetworkCl
 	}
 }
 
+type WifiCollector struct {
+	Credentials []Credential
+}
+
+var (
+	wifiUploadBytesDesc = prometheus.NewDesc(
+		"wifi_upload_bytes",
+		"Total uploaded bytes by the host",
+		[]string{
+			"mac"},
+		nil,
+	)
+
+	wifiDownloadBytesDesc = prometheus.NewDesc(
+		"wifi_download_bytes",
+		"Total downloaded bytes by the host",
+		[]string{
+			"mac"},
+		nil,
+	)
+)
+
+func (wc WifiCollector) Describe(ch chan<- *prometheus.Desc) {
+	prometheus.DescribeByCollect(wc, ch)
+}
+
+func (wc WifiCollector) Collect(ch chan<- prometheus.Metric) {
+	var NetworkClients []NetworkClient
+	CollectNetworkClients(wc.Credentials, &NetworkClients)
+
+	for _, nc := range NetworkClients {
+		ch <- prometheus.MustNewConstMetric(
+		wifiUploadBytesDesc,
+		prometheus.CounterValue,
+		float64(nc.Up),
+		nc.MAC,
+		)
+		ch <- prometheus.MustNewConstMetric(
+		wifiDownloadBytesDesc,
+		prometheus.CounterValue,
+		float64(nc.Down),
+		nc.MAC,
+		)
+	}
+}
+
+func prometheusListen(listen string, credentials []Credential) {
+	registry := prometheus.NewRegistry()
+	fmt.Println("listen on " + listen)
+	wc := WifiCollector{Credentials: credentials}
+	registry.MustRegister(wc)
+	handler := promhttp.HandlerFor(registry, promhttp.HandlerOpts{})
+	http.Handle("/metrics", handler)
+	log.Fatal(http.ListenAndServe(listen, nil))
+}
+
 func main() {
+	var listen string
+	flag.StringVar(&listen, "listen", "", "thing to listen on (like :1234) for Prometheus requests")
+	flag.Parse()
+
 	// Read configuration with AP credentials
 	byteValue, err := ioutil.ReadAll(os.Stdin)
 	if err != nil {
@@ -302,9 +365,13 @@ func main() {
 	var credentials []Credential
 	yaml.Unmarshal(byteValue, &credentials)
 
-	var NetworkClients []NetworkClient
-	CollectNetworkClients(credentials, &NetworkClients)
+	if listen == "" {
+		var NetworkClients []NetworkClient
+		CollectNetworkClients(credentials, &NetworkClients)
+		networkClientsB, _ := yaml.Marshal(&NetworkClients)
+		fmt.Println(string(networkClientsB))
+	} else {
+		prometheusListen(listen, credentials)
+	}
 
-	networkClientsB, _ := yaml.Marshal(&NetworkClients)
-	fmt.Println(string(networkClientsB))
 }
