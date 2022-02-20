@@ -99,7 +99,7 @@ type NetworkClient struct {
 	IP         string    `yaml:"IP,omitempty"`
 	Down       int64     `yaml:"Down"`
 	Up         int64     `yaml:"Up"`
-	ActiveTime string    `yaml:"ActiveTime"`
+	ActiveTime int64     `yaml:"ActiveTime"`
 	LinkType   string    `yaml:"linktype"`
 	Upstream   string    `yaml:"Upstream"`
 	WiFi       WiFiParam `yaml:"WiFi,omitempty"`
@@ -195,8 +195,11 @@ func eap225_to_network(credentials *Credential, clients *Eap225StatusClientUsers
 		// Upstream is the Access Point
 		nc.Upstream = credentials.Host
 
-		// TODO: ActiveTime must be converted to seconds
-		nc.ActiveTime = clients.Data[i].ActiveTime
+		// ActiveTime converted to seconds
+		var day, hour, min, sec int64
+		_, err = fmt.Sscanf(clients.Data[i].ActiveTime, "%d days %d:%d:%d",
+			&day, &hour, &min, &sec)
+		nc.ActiveTime = sec + 60 * (min + 60 * (hour + 24 * day))
 
 		*networkClients = append(*networkClients, nc)
 	}
@@ -268,7 +271,7 @@ func iw_to_network(credentials *Credential, iwClients *[]IwStationDump, networkC
 		nc.Up = iw.Up
 		nc.Down = iw.Down
 		nc.LinkType = "IEEE802_11"
-		nc.ActiveTime = strconv.Itoa(iw.ActiveTime)
+		nc.ActiveTime = int64(iw.ActiveTime)
 		nc.Upstream = credentials.Host
 		nc.WiFi.Radio = 0 // TODO: my raspi can only 2.4 GHz
 		nc.WiFi.RSSI = iw.RSSI
@@ -304,7 +307,8 @@ var (
 		"wifi_upload_bytes",
 		"Total uploaded bytes by the host",
 		[]string{
-			"mac"},
+			"mac",
+			"upstream"},
 		nil,
 	)
 
@@ -312,7 +316,17 @@ var (
 		"wifi_download_bytes",
 		"Total downloaded bytes by the host",
 		[]string{
-			"mac"},
+			"mac",
+			"upstream"},
+		nil,
+	)
+
+	wifiActiveTimeDesc = prometheus.NewDesc(
+		"wifi_active_time",
+		"Total time host is connected to upstream",
+		[]string{
+			"mac",
+			"upstream"},
 		nil,
 	)
 )
@@ -331,12 +345,21 @@ func (wc WifiCollector) Collect(ch chan<- prometheus.Metric) {
 		prometheus.CounterValue,
 		float64(nc.Up),
 		nc.MAC,
+		nc.Upstream,
 		)
 		ch <- prometheus.MustNewConstMetric(
 		wifiDownloadBytesDesc,
 		prometheus.CounterValue,
 		float64(nc.Down),
 		nc.MAC,
+		nc.Upstream,
+		)
+		ch <- prometheus.MustNewConstMetric(
+		wifiActiveTimeDesc,
+		prometheus.CounterValue,
+		float64(nc.ActiveTime),
+		nc.MAC,
+		nc.Upstream,
 		)
 	}
 }
