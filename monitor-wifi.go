@@ -13,6 +13,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/cookiejar"
+	// _ "net/http/pprof"
 	"net/url"
 	"os"
 	"os/exec"
@@ -24,6 +25,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"gopkg.in/yaml.v2"
 )
+
 
 func GetMD5Hash(text string) string {
 	hash := md5.Sum([]byte(text))
@@ -117,15 +119,16 @@ func eap225_get(credentials *Credential, clients *Eap225StatusClientUsers) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	// Create a now client
+	// Create a new client
 	client := &http.Client{
 		Jar: jar,
 	}
 	// Get a first response
-	resp, err := client.Get(u.String())
+	resp1, err := client.Get(u.String())
 	if err != nil {
 		log.Fatal(err)
 	}
+	defer resp1.Body.Close()
 
 	// Prepare form data
 	v1 := url.Values{}
@@ -133,10 +136,11 @@ func eap225_get(credentials *Credential, clients *Eap225StatusClientUsers) {
 	v1.Set("password", GetMD5Hash(credentials.Password))
 
 	// Now POST with username and hashed password
-	resp, err = client.PostForm(u.String(), v1)
+	resp2, err := client.PostForm(u.String(), v1)
 	if err != nil {
 		log.Fatal(err)
 	}
+	defer resp2.Body.Close()
 
 	// Create an empty request
 	req, err := http.NewRequest("GET", "http://"+credentials.Host+"/data/status.client.user.json", nil)
@@ -152,10 +156,14 @@ func eap225_get(credentials *Credential, clients *Eap225StatusClientUsers) {
 	req.Header.Add("Referer", "http://"+credentials.Host+"/")
 
 	// Do it
-	resp, err = client.Do(req)
+	resp3, err := client.Do(req)
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	// Decode the JSON document
-	json.NewDecoder(resp.Body).Decode(clients)
+	json.NewDecoder(resp3.Body).Decode(clients)
+	defer resp3.Body.Close()
 }
 
 func eap225_to_network(credentials *Credential, clients *Eap225StatusClientUsers, networkClients *[]NetworkClient) {
