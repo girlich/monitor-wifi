@@ -159,9 +159,9 @@ type OmadaWebClientData struct {
 	RSSI          int                     `json:"rssi"`
 	Snr           int                     `json:"snr"`
 	Activity      int                     `json:"activity"`
-	TrafficDown   int                     `json:"trafficDown"`
-	TrafficUp     int                     `json:"trafficUp"`
-	Uptime        int                     `json:"uptime"`
+	TrafficDown   int64                   `json:"trafficDown"`
+	TrafficUp     int64                   `json:"trafficUp"`
+	Uptime        int64                   `json:"uptime"`
 	LastSeen      int                     `json:"lastSeen"`
 	AuthStatus    int                     `json:"authStatus"`
 	Guest         bool                    `json:"guest"`
@@ -213,25 +213,6 @@ type OmadaWebClientStat struct {
 	Fair             int                  `json:"fair"`
 	NoData           int                  `json:"noData"`
 	Good             int                  `json:"good"`
-}
-
-type OmadaWebStatusClientUser struct {
-	Key               int    `yaml:"key"`
-	Hostname          string `yaml:"hostname"`
-	Radio             int    `yaml:"Radio"`
-	MAC               string `yaml:"MAC"`
-	IP                string `yaml:"IP"`
-	SSID              string `yaml:"SSID"`
-	RSSI              int    `yaml:"RSSI"`
-	Rate              string `yaml:"Rate"`
-	Down              int64  `yaml:"Down"`
-	Up                int64  `yaml:"Up"`
-	ActiveTime        string `yaml:"ActiveTime"`
-	Limit             int    `yaml:"limit"`
-	LimitUpload       int    `yaml:"limit_upload"`
-	LimitUploadUnit   int    `yaml:"limit_upload_unit"`
-	LimitDownload     int    `yaml:"limit_download"`
-	LimitDownloadUnit int    `yaml:"limit_download_unit"`
 }
 
 type WiFiParam struct {
@@ -475,10 +456,12 @@ func omadaweb_get(credentials *Credential, clients *OmadaWebClientsResponse) {
 	json.NewDecoder(resp1.Body).Decode(&omadaWebLoginResponse)
 	defer resp1.Body.Close()
 
+	/*
 	fmt.Printf("token: %s\n", omadaWebLoginResponse.Result.Token)
 	for _, omadacId := range omadaWebLoginResponse.Result.OmadacId {
 		fmt.Printf("id: %s\n", omadacId)
 	}
+	*/
 	omadacId := omadaWebLoginResponse.Result.OmadacId[0] // TODO loop over all IDs and combine the results
 
 
@@ -503,9 +486,11 @@ func omadaweb_get(credentials *Credential, clients *OmadaWebClientsResponse) {
 	json.NewDecoder(resp2.Body).Decode(&omadaWebSitesResponse)
 	defer resp2.Body.Close()
 
+	/*
 	for _, site := range omadaWebSitesResponse.Result.Data {
 		fmt.Printf("site id: %s\n", site.Id)
 	}
+	*/
 	siteId := omadaWebSitesResponse.Result.Data[0].Id // TODO loop over all sites and combine the results
 
 
@@ -533,17 +518,61 @@ func omadaweb_get(credentials *Credential, clients *OmadaWebClientsResponse) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	var omadaWebClientsResponse OmadaWebClientsResponse
-	json.NewDecoder(resp3.Body).Decode(&omadaWebClientsResponse)
+	json.NewDecoder(resp3.Body).Decode(clients)
 	defer resp3.Body.Close()
 
-	for _, client := range omadaWebClientsResponse.Result.Data {
+	/* for _, client := range clients.Result.Data {
 		fmt.Printf("MAC: %s, ApName: %s\n", client.MAC, client.ApName)
 	}
+	*/
 }
 
-func omadaweb_to_network(credentials *Credential, omadawebClients *OmadaWebClientsResponse, networkClients *[]NetworkClient) {
+func omadaweb_to_network(credentials *Credential, clients *OmadaWebClientsResponse, networkClients *[]NetworkClient) {
+	for i, _ := range clients.Result.Data {
+		var nc NetworkClient
 
+		// Copy IP verbatim
+		nc.IP = clients.Result.Data[i].IP
+
+		// Get canonical hostname from IP address
+		names, err := net.LookupAddr(nc.IP)
+		if err != nil {
+			nc.Hostname = "unknown host"
+		} else {
+			nc.Hostname = names[0]
+			if strings.HasSuffix(nc.Hostname, ".") {
+				nc.Hostname = nc.Hostname[:len(nc.Hostname)-1]
+			}
+		}
+
+		// Normalize MAC
+		nc.MAC = strings.Replace(strings.ToLower(clients.Result.Data[i].MAC), "-", ":", 5)
+
+		// Linktype is WiFi
+		if clients.Result.Data[i].Wireless {
+			nc.LinkType = "IEEE802_11"
+		} else {
+			nc.LinkType = "ETHERNET"
+		}
+
+		nc.WiFi.Radio = clients.Result.Data[i].RadioId
+		nc.WiFi.RSSI = clients.Result.Data[i].RSSI
+		nc.WiFi.Rate = fmt.Sprintf("%d", clients.Result.Data[i].RxRate)
+
+		// Download bytes
+		nc.Down = clients.Result.Data[i].TrafficDown
+
+		// Upload bytes
+		nc.Up = clients.Result.Data[i].TrafficUp
+
+		// ApName is part of the result structure
+		nc.Upstream = clients.Result.Data[i].ApName
+
+		// ActiveTime in seconds
+		nc.ActiveTime = clients.Result.Data[i].Uptime
+
+		*networkClients = append(*networkClients, nc)
+	}
 }
 
 func CollectNetworkClients(credentials []Credential, NetworkClients *[]NetworkClient) {
