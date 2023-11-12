@@ -506,7 +506,40 @@ func omadaweb_get(credentials *Credential, clients *OmadaWebClientsResponse) {
 	for _, site := range omadaWebSitesResponse.Result.Data {
 		fmt.Printf("site id: %s\n", site.Id)
 	}
-	// siteId := omadaWebSitesResponse.Result.Data[0].Id // TODO loop over all sites and combine the results
+	siteId := omadaWebSitesResponse.Result.Data[0].Id // TODO loop over all sites and combine the results
+
+
+
+
+	// List of clients
+	u, err = url.Parse(fmt.Sprintf("https://%s:%d/%s/api/v2/sites/%s/clients", credentials.Host, credentials.Port, omadacId, siteId))
+	if err != nil {
+		log.Fatal(err)
+	}
+	request, err = http.NewRequest(
+			http.MethodGet,
+			u.String(),
+			strings.NewReader(""))
+	// Add needed headers
+	request.Header.Add("Referer", fmt.Sprintf("https://%s:%d/%s/login", credentials.Host, credentials.Port, omadacId))
+	request.Header.Add("Csrf-Token", omadaWebLoginResponse.Result.Token)
+	// Add needed query parameters
+	q := request.URL.Query()
+	q.Add("filters.active", "false")
+	q.Add("currentPageSize", "300")
+	request.URL.RawQuery = q.Encode()
+
+	resp3, err := client.Do(request)
+	if err != nil {
+		log.Fatal(err)
+	}
+	var omadaWebClientsResponse OmadaWebClientsResponse
+	json.NewDecoder(resp3.Body).Decode(&omadaWebClientsResponse)
+	defer resp3.Body.Close()
+
+	for _, client := range omadaWebClientsResponse.Result.Data {
+		fmt.Printf("MAC: %s, ApName: %s\n", client.MAC, client.ApName)
+	}
 }
 
 func omadaweb_to_network(credentials *Credential, omadawebClients *OmadaWebClientsResponse, networkClients *[]NetworkClient) {
