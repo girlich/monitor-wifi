@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"crypto/md5"
+	"crypto/tls" // new
 	"encoding/hex"
 	"encoding/json"
 	"flag"
@@ -35,6 +36,7 @@ func GetMD5Hash(text string) string {
 type Credential struct {
 	Type     string   `yaml:"type"`
 	Host     string   `yaml:"host"`
+	Port     int      `yaml:"port"`
 	User     string   `yaml:"user"`
 	Password string   `yaml:"password"`
 	Command  []string `yaml:"command"`
@@ -87,6 +89,130 @@ type IwStationDump struct {
 	BeaconInterval int
 	ShortSlotTime  bool
 	ActiveTime     int
+}
+
+type OmadaWebLoginResponse struct {
+	Error          int                    `json:"errorCode"`
+	Message        string                 `json:"msg"`
+	Result         OmadaWebLoginResult    `json:"result"`
+}
+
+type OmadaWebLoginResult struct {
+	OmadacId      []string                `json:"omadacId"`
+	Token         string                  `json:"token"`
+}
+
+type OmadaWebClientsResponse struct {
+	Error          int                    `json:"errorCode"`
+	Message        string                 `json:"msg"`
+	Result         OmadaWebClientsResult  `json:"result"`
+}
+
+type OmadaWebClientsResult struct {
+	TotalRows     int                     `json:"totalRows"`
+	CurrentPage   int                     `json:"currentPage"`
+	CurrentSize   int                     `json:"currentSize"`
+	Data          []OmadaWebClientData    `json:"data"`
+	ClientStat    OmadaWebClientStat      `json:"clientStat"`
+}
+
+type OmadaWebClientData struct {
+	MAC           string                  `json:"mac"`
+	Name          string                  `json:"name"`
+	DeviceType    string                  `json:"deviceType"`
+	IP            string                  `json:"IP"`
+	ConnectType   int                     `json:"connectType"`
+	ConnectDevType string                 `json:"connectDevType"`
+	ConnectedToWirelessRouter bool        `json:"connectedToWirelessRouter"`
+	Wireless      bool                    `json:"wireless"`
+	SSID          string                  `json:"ssid"`
+	SignalLevel   int                     `json:"signalLevel"`
+	HealthScore   int                     `json:"healthScore"`
+	SignalRank    int                     `json:"signalRank"`
+	WifiMode      int                     `json:"wifiMode"`
+	ApName        string                  `json:"apName"`
+	ApMac         string                  `json:"apMac"`
+	RadioId       int                     `json:"radioId"`
+	Channel       int                     `json:"channel"`
+	RxRate        int                     `json:"rxRate"`
+	TxRate        int                     `json:"txRate"`
+	PowerSave     bool                    `json:"powerSave"`
+	RSSI          int                     `json:"rssi"`
+	Snr           int                     `json:"snr"`
+	Activity      int                     `json:"activity"`
+	TrafficDown   int                     `json:"trafficDown"`
+	TrafficUp     int                     `json:"trafficUp"`
+	Uptime        int                     `json:"uptime"`
+	LastSeen      int                     `json:"lastSeen"`
+	AuthStatus    int                     `json:"authStatus"`
+	Guest         bool                    `json:"guest"`
+	Active        bool                    `json:"active"`
+	Manager       bool                    `json:"manager"`
+	DownPacket    int                     `json:"downPacket"`
+	UpPacket      int                     `json:"upPacket"`
+	Support5G2    bool                    `json:"support5g2"`
+	MultiLink     []OmadaWebMultiLink     `json:"multiLink"`
+}
+
+type OmadaWebMultiLink struct {
+	RadioId       int                     `json:"radioId"`
+	WifiMode      int                     `json:"wifiMode"`
+	Channel       int                     `json:"channel"`
+	RxRate        int                     `json:"rxRate"`
+	TxRate        int                     `json:"txRate"`
+	PowerSave     bool                    `json:"powerSave"`
+	RSSI          int                     `json:"rssi"`
+	Snr           int                     `json:"snr"`
+	SignalLevel   int                     `json:"signalLevel"`
+	SignalRank    int                     `json:"signalRank"`
+	UpPacket      int                     `json:"upPacket"`
+	DownPacket    int                     `json:"downPacket"`
+	TrafficDown   int                     `json:"trafficDown"`
+	TrafficUp     int                     `json:"trafficUp"`
+	Activity      int                     `json:"activity"`
+	SignalLevelAndRank  int               `json:"signalLevelAndRank"`
+}
+
+type OmadaWebClientStat struct {
+	Total            int                  `json:"total"`
+	Wireless         int                  `json:"wireless"`
+	Wired            int                  `json:"wired"`
+	Num2G            int                  `json:"num2g"`
+	Num5G            int                  `json:"num5g"`
+	Num6G            int                  `json:"num6g"`
+	NumUser          int                  `json:"numUser"`
+	NumGuest         int                  `json:"numGuest"`
+	NumWirelessUser  int                  `json:"numWirelessUser"`
+	NumWirelessGuest int                  `json:"numWirelessGuest"`
+	Num2GUser        int                  `json:"num2gUser"`
+	Num5GUser        int                  `json:"num5gUser"`
+	Num6GUser        int                  `json:"num6gUser"`
+	Num2GGuest       int                  `json:"num2gGuest"`
+	Num5GGuest       int                  `json:"num5gGuest"`
+	Num6GGuest       int                  `json:"num6gGuest"`
+	Poor             int                  `json:"poor"`
+	Fair             int                  `json:"fair"`
+	NoData           int                  `json:"noData"`
+	Good             int                  `json:"good"`
+}
+
+type OmadaWebStatusClientUser struct {
+	Key               int    `yaml:"key"`
+	Hostname          string `yaml:"hostname"`
+	Radio             int    `yaml:"Radio"`
+	MAC               string `yaml:"MAC"`
+	IP                string `yaml:"IP"`
+	SSID              string `yaml:"SSID"`
+	RSSI              int    `yaml:"RSSI"`
+	Rate              string `yaml:"Rate"`
+	Down              int64  `yaml:"Down"`
+	Up                int64  `yaml:"Up"`
+	ActiveTime        string `yaml:"ActiveTime"`
+	Limit             int    `yaml:"limit"`
+	LimitUpload       int    `yaml:"limit_upload"`
+	LimitUploadUnit   int    `yaml:"limit_upload_unit"`
+	LimitDownload     int    `yaml:"limit_download"`
+	LimitDownloadUnit int    `yaml:"limit_download_unit"`
 }
 
 type WiFiParam struct {
@@ -289,6 +415,52 @@ func iw_to_network(credentials *Credential, iwClients *[]IwStationDump, networkC
 	}
 }
 
+func omadaweb_get(credentials *Credential, clients *OmadaWebClientsResponse) {
+	// Create a new cookie jar
+	jar, err := cookiejar.New(nil)
+	if err != nil {
+		log.Fatal(err)
+	}
+	// Create a new Transport, ignore the TLS certificate as Omada runs internally only and will never have a valid TLS certificate.
+	transport := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	}
+	// Create a new client with these things attached
+	client := &http.Client{
+		Jar: jar,
+		Transport: transport,
+	}
+
+	// Login
+	// Parse URL
+	u, err := url.Parse(fmt.Sprintf("https://%s:%d/api/v2/login", credentials.Host, credentials.Port))
+	if err != nil {
+		log.Fatal(err)
+	}
+	var rawJsonData = []byte(`{
+		"username": "%s",
+		"password": "%s"
+	}`)
+	// A POST request to the URL with the credential given
+	request, err := http.NewRequest(
+			"POST",
+			u.String(),
+			strings.NewReader(fmt.Sprintf(string(rawJsonData), credentials.User, credentials.Password)))
+	// Get a first response
+	resp1, err := client.Do(request)
+	if err != nil {
+		log.Fatal(err)
+	}
+	var omadaWebLoginResponse OmadaWebLoginResponse
+	json.NewDecoder(resp1.Body).Decode(&omadaWebLoginResponse)
+	defer resp1.Body.Close()
+	fmt.Printf("id: %s\ntoken: %s\n", omadaWebLoginResponse.Result.OmadacId[0], omadaWebLoginResponse.Result.Token)
+}
+
+func omadaweb_to_network(credentials *Credential, omadawebClients *OmadaWebClientsResponse, networkClients *[]NetworkClient) {
+
+}
+
 func CollectNetworkClients(credentials []Credential, NetworkClients *[]NetworkClient) {
 	for i := 0; i < len(credentials); i++ {
 		switch credentials[i].Type {
@@ -300,6 +472,10 @@ func CollectNetworkClients(credentials []Credential, NetworkClients *[]NetworkCl
 			var Data []IwStationDump
 			iw_get(&credentials[i], &Data)
 			iw_to_network(&credentials[i], &Data, NetworkClients)
+		case "omadaweb":
+			var Data OmadaWebClientsResponse
+			omadaweb_get(&credentials[i], &Data)
+			omadaweb_to_network(&credentials[i], &Data, NetworkClients)
 		default:
 			fmt.Fprintf(os.Stderr, "unknown AP type: %s\n", credentials[i].Type)
 		}
