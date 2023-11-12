@@ -454,7 +454,15 @@ func omadaweb_get(credentials *Credential, clients *OmadaWebClientsResponse) {
 	var omadaWebLoginResponse OmadaWebLoginResponse
 	json.NewDecoder(resp1.Body).Decode(&omadaWebLoginResponse)
 	defer resp1.Body.Close()
-	fmt.Printf("id: %s\ntoken: %s\n", omadaWebLoginResponse.Result.OmadacId[0], omadaWebLoginResponse.Result.Token)
+
+	fmt.Printf("token: %s\n", omadaWebLoginResponse.Result.Token)
+	for _, omadacId := range omadaWebLoginResponse.Result.OmadacId {
+		fmt.Printf(" id: %s\n", omadacId)
+	}
+
+
+
+
 }
 
 func omadaweb_to_network(credentials *Credential, omadawebClients *OmadaWebClientsResponse, networkClients *[]NetworkClient) {
