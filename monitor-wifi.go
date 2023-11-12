@@ -102,6 +102,25 @@ type OmadaWebLoginResult struct {
 	Token         string                  `json:"token"`
 }
 
+type OmadaWebSitesResponse struct {
+	Error          int                    `json:"errorCode"`
+	Message        string                 `json:"msg"`
+	Result         OmadaWebSitesResult    `json:"result"`
+}
+
+type OmadaWebSitesResult struct {
+	TotalRows     int                     `json:"totalRows"`
+	CurrentPage   int                     `json:"currentPage"`
+	CurrentSize   int                     `json:"currentSize"`
+	Data          []OmadaWebSite          `json:"data"`
+}
+
+type OmadaWebSite struct {
+	Id            string                  `json:"id"`
+	Name          string                  `json:"name"`
+	Type          int                     `json:"type"`
+}
+
 type OmadaWebClientsResponse struct {
 	Error          int                    `json:"errorCode"`
 	Message        string                 `json:"msg"`
@@ -431,8 +450,10 @@ func omadaweb_get(credentials *Credential, clients *OmadaWebClientsResponse) {
 		Transport: transport,
 	}
 
+
+
+
 	// Login
-	// Parse URL
 	u, err := url.Parse(fmt.Sprintf("https://%s:%d/api/v2/login", credentials.Host, credentials.Port))
 	if err != nil {
 		log.Fatal(err)
@@ -441,12 +462,11 @@ func omadaweb_get(credentials *Credential, clients *OmadaWebClientsResponse) {
 		"username": "%s",
 		"password": "%s"
 	}`)
-	// A POST request to the URL with the credential given
+	// A POST request to the login URL with the credential given
 	request, err := http.NewRequest(
-			"POST",
+			http.MethodPost,
 			u.String(),
 			strings.NewReader(fmt.Sprintf(string(rawJsonData), credentials.User, credentials.Password)))
-	// Get a first response
 	resp1, err := client.Do(request)
 	if err != nil {
 		log.Fatal(err)
@@ -457,12 +477,36 @@ func omadaweb_get(credentials *Credential, clients *OmadaWebClientsResponse) {
 
 	fmt.Printf("token: %s\n", omadaWebLoginResponse.Result.Token)
 	for _, omadacId := range omadaWebLoginResponse.Result.OmadacId {
-		fmt.Printf(" id: %s\n", omadacId)
+		fmt.Printf("id: %s\n", omadacId)
 	}
+	omadacId := omadaWebLoginResponse.Result.OmadacId[0] // TODO loop over all IDs and combine the results
 
 
 
 
+	// List of sites
+	u, err = url.Parse(fmt.Sprintf("https://%s:%d/%s/api/v2/user/sites", credentials.Host, credentials.Port, omadacId))
+	if err != nil {
+		log.Fatal(err)
+	}
+	request, err = http.NewRequest(
+			http.MethodGet,
+			u.String(),
+			strings.NewReader(""))
+	request.Header.Add("Referer", fmt.Sprintf("https://%s:%d/%s/login", credentials.Host, credentials.Port, omadacId))
+	request.Header.Add("Csrf-Token", omadaWebLoginResponse.Result.Token)
+	resp2, err := client.Do(request)
+	if err != nil {
+		log.Fatal(err)
+	}
+	var omadaWebSitesResponse OmadaWebSitesResponse
+	json.NewDecoder(resp2.Body).Decode(&omadaWebSitesResponse)
+	defer resp2.Body.Close()
+
+	for _, site := range omadaWebSitesResponse.Result.Data {
+		fmt.Printf("site id: %s\n", site.Id)
+	}
+	// siteId := omadaWebSitesResponse.Result.Data[0].Id // TODO loop over all sites and combine the results
 }
 
 func omadaweb_to_network(credentials *Credential, omadawebClients *OmadaWebClientsResponse, networkClients *[]NetworkClient) {
