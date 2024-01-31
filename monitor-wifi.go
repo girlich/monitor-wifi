@@ -98,7 +98,7 @@ type OmadaWebLoginResponse struct {
 }
 
 type OmadaWebLoginResult struct {
-	OmadacId      []string                `json:"omadacId"`
+	OmadacId      string                  `json:"omadacId"`
 	Token         string                  `json:"token"`
 }
 
@@ -458,11 +458,9 @@ func omadaweb_get(credentials *Credential, clients *OmadaWebClientsResponse) {
 
 	/*
 	fmt.Printf("token: %s\n", omadaWebLoginResponse.Result.Token)
-	for _, omadacId := range omadaWebLoginResponse.Result.OmadacId {
-		fmt.Printf("id: %s\n", omadacId)
-	}
+	fmt.Printf("OmadacId: %s\n", omadaWebLoginResponse.Result.OmadacId)
 	*/
-	omadacId := omadaWebLoginResponse.Result.OmadacId[0] // TODO loop over all IDs and combine the results
+	omadacId := omadaWebLoginResponse.Result.OmadacId
 
 
 
