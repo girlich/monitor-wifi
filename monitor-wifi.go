@@ -345,7 +345,9 @@ func iw_get(credentials *Credential, clients *[]IwStationDump) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	cmd.Start()
+	if err := cmd.Start(); err != nil {
+		log.Fatal(err)
+	}
 	buf := bufio.NewReader(stdout)
 	var isd *IwStationDump = nil
 	reMAC := regexp.MustCompile(`Station ([0-9a-f:]{17}) \(on `)
@@ -395,6 +397,10 @@ func iw_get(credentials *Credential, clients *[]IwStationDump) {
 	// append last one
 	if isd != nil {
 		*clients = append(*clients, *isd)
+	}
+
+	if err := cmd.Wait(); err != nil {
+		log.Fatal(err)
 	}
 }
 
