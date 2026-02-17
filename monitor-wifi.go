@@ -215,6 +215,86 @@ type OmadaWebClientStat struct {
 	Good             int                  `json:"good"`
 }
 
+type OmadaApiInfoResponse struct {
+	Error          int32                  `json:"errorCode"`
+	Message        string                 `json:"msg"`
+	Result         OmadaApiInfoResult     `json:"result"`
+}
+
+type OmadaApiInfoResult struct {
+	OmadacId	string                `json:"omadacId"`
+}
+
+type OmadaApiAuthorizeResponse struct {
+	Error          int32                  `json:"errorCode"`
+	Message        string                 `json:"msg"`
+	Result         OmadaApiAuthorizeResult `json:"result"`
+}
+
+type OmadaApiAuthorizeResult struct {
+	AccessToken	string                `json:"accessToken"`
+}
+
+type OmadaApiClientsResponse struct {
+	Error          int32                  `json:"errorCode"`
+	Message        string                 `json:"msg"`
+	Result         OmadaApiClientsResult  `json:"result"`
+}
+
+type OmadaApiClientsResult struct {
+	TotalRows     int64                   `json:"totalRows"`
+	CurrentPage   int32                   `json:"currentPage"`
+	CurrentSize   int32                   `json:"currentSize"`
+	Data          []OmadaApiClientData    `json:"data"`
+	/* ClientStat    OmadaApiClientStat      `json:"clientStat"` */
+	/* ClientTypeStat OmadaApiClientClientTypeStat `json:"clientTypeStat"` */
+}
+
+type OmadaApiClientData struct {
+	MAC           string                  `json:"mac"`
+	Name          string                  `json:"name"`
+	HostName      string                  `json:"hostName"`
+	Vendor        string                  `json:"vendor"`
+	DeviceType    string                  `json:"deviceType"`
+	DeviceCategory string                 `json:"deviceCategory"`
+	OsName        string                  `json:"osName"`
+	Model         string                  `json:"model"`
+	IP            string                  `json:"ip"`
+	ConnectType   int32                   `json:"connectType"`
+	ConnectDevType string                 `json:"connectDevType"`
+	ConnectedToWirelessRouter bool        `json:"connectedToWirelessRouter"`
+	Wireless      bool                    `json:"wireless"`
+	SSID          string                  `json:"ssid"`
+	SignalLevel   int32                   `json:"signalLevel"`
+	SignalRank    int32                   `json:"signalRank"`
+	WifiMode      int32                   `json:"wifiMode"`
+	ApName        string                  `json:"apName"`
+	ApMac         string                  `json:"apMac"`
+	RadioId       int32                   `json:"radioId"`
+	Channel       int32                   `json:"channel"`
+	RxRate        int64                   `json:"rxRate"`
+	TxRate        int64                   `json:"txRate"`
+	PowerSave     bool                    `json:"powerSave"`
+	RSSI          int32                   `json:"rssi"`
+	Snr           int32                   `json:"snr"`
+	Activity      int                     `json:"activity"`
+	TrafficDown   int64                   `json:"trafficDown"`
+	TrafficUp     int64                   `json:"trafficUp"`
+	Uptime        int64                   `json:"uptime"`
+	LastSeen      int                     `json:"lastSeen"`
+	AuthStatus    int                     `json:"authStatus"`
+	Blocked       bool                    `json:"blocked"`
+	Guest         bool                    `json:"guest"`
+	Active        bool                    `json:"active"`
+	Manager       bool                    `json:"manager"`
+	DownPacket    int                     `json:"downPacket"`
+	UpPacket      int                     `json:"upPacket"`
+	Support5G2    bool                    `json:"support5g2"`
+	/* MultiLink     []OmadaApiMultiLink     `json:"multiLink"` */
+	SystemName    string                  `json:"systemName"`
+	/* AuthInfo      []OmadaApiAuthInfo      `json:"authInfo"` */
+}
+
 type WiFiParam struct {
 	Radio int    `yaml:"Radio"`
 	RSSI  int    `yaml:"RSSI"`
@@ -462,10 +542,10 @@ func omadaweb_get(credentials *Credential, clients *OmadaWebClientsResponse) {
 	json.NewDecoder(resp1.Body).Decode(&omadaWebLoginResponse)
 	defer resp1.Body.Close()
 
-	/*
+	
 	fmt.Printf("token: %s\n", omadaWebLoginResponse.Result.Token)
 	fmt.Printf("OmadacId: %s\n", omadaWebLoginResponse.Result.OmadacId)
-	*/
+	
 	omadacId := omadaWebLoginResponse.Result.OmadacId
 
 
@@ -579,6 +659,63 @@ func omadaweb_to_network(credentials *Credential, clients *OmadaWebClientsRespon
 	}
 }
 
+func omadaapi_get(credentials *Credential, clients *OmadaApiClientsResponse) {
+
+	// Create a new Transport, ignore the TLS certificate as Omada runs internally only and will never have a valid TLS certificate.
+	transport := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	}
+	// Create a new client with these things attached
+	client := &http.Client{
+		Transport: transport,
+	}
+
+	// API Info
+	u, err := url.Parse(fmt.Sprintf("https://%s:%d/api/info", credentials.Host, credentials.Port))
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	request, err := http.NewRequest(
+			http.MethodGet,
+			u.String(),
+			http.NoBody)
+	resp1, err := client.Do(request)
+	if err != nil {
+		log.Fatal(err)
+	}
+	var omadaApiInfoResponse OmadaApiInfoResponse
+	json.NewDecoder(resp1.Body).Decode(&omadaApiInfoResponse)
+	omadacId := omadaApiInfoResponse.Result.OmadacId
+	fmt.Printf("OmadacId: %s\n", omadacId)
+
+	// Authorize
+	u, err = url.Parse(fmt.Sprintf("https://%s:%d/openapi/authorize/token?grant_type=client_credentials", credentials.Host, credentials.Port))
+	var rawJsonData = []byte(`{
+		"client_id": "%s",
+		"client_secret": "%s",
+		"omadacId": "%s"
+	}`)
+	request, err = http.NewRequest(
+			http.MethodPost,
+			u.String(),
+			strings.NewReader(fmt.Sprintf(string(rawJsonData), credentials.User, credentials.Password, omadacId)))
+	resp1, err = client.Do(request)
+	if err != nil {
+		log.Fatal(err)
+	}
+	var omadaApiAuthorizeResponse OmadaApiAuthorizeResponse
+	json.NewDecoder(resp1.Body).Decode(&omadaApiAuthorizeResponse)
+	AccessToken := omadaApiAuthorizeResponse.Result.AccessToken
+	fmt.Printf("AccessToken: %s\n", AccessToken)
+	defer resp1.Body.Close()
+
+}
+
+func omadaapi_to_network(credentials *Credential, clients *OmadaApiClientsResponse, networkClients *[]NetworkClient) {
+
+}
+
 func CollectNetworkClients(credentials []Credential, NetworkClients *[]NetworkClient) {
 	for i := 0; i < len(credentials); i++ {
 		switch credentials[i].Type {
@@ -594,6 +731,10 @@ func CollectNetworkClients(credentials []Credential, NetworkClients *[]NetworkCl
 			var Data OmadaWebClientsResponse
 			omadaweb_get(&credentials[i], &Data)
 			omadaweb_to_network(&credentials[i], &Data, NetworkClients)
+		case "omadaapi":
+			var Data OmadaApiClientsResponse
+			omadaapi_get(&credentials[i], &Data)
+			omadaapi_to_network(&credentials[i], &Data, NetworkClients)
 		default:
 			fmt.Fprintf(os.Stderr, "unknown AP type: %s\n", credentials[i].Type)
 		}

@@ -19,3 +19,6 @@ indent:
 clean:
 	rm -f $(BINS) $(B)
 
+test: all
+	./monitor-wifi < ../credentials-wifi.yml
+
