@@ -235,6 +235,21 @@ type OmadaApiAuthorizeResult struct {
 	AccessToken	string                `json:"accessToken"`
 }
 
+type OmadaApiSitesResponse struct {
+	Error          int32                  `json:"errorCode"`
+	Message        string                 `json:"msg"`
+	Result         OmadaApiSitesResult `json:"result"`
+}
+
+type OmadaApiSitesResult struct {
+	Data	       []OmadaApiSiteData     `json:"data"`
+}
+
+type OmadaApiSiteData struct {
+	Name           string                 `json:"name"`
+	SiteId         string                 `json:"siteId"`
+}
+
 type OmadaApiClientsResponse struct {
 	Error          int32                  `json:"errorCode"`
 	Message        string                 `json:"msg"`
@@ -710,6 +725,23 @@ func omadaapi_get(credentials *Credential, clients *OmadaApiClientsResponse) {
 	fmt.Printf("AccessToken: %s\n", AccessToken)
 	defer resp1.Body.Close()
 
+	// Sites
+	u, err = url.Parse(fmt.Sprintf("https://%s:%d/openapi/v1/%s/sites?page=1&pageSize=100", credentials.Host, credentials.Port, omadacId))
+	request, err = http.NewRequest(
+			http.MethodGet,
+			u.String(),
+			http.NoBody)
+	request.Header.Add("Authorization", fmt.Sprintf("AccessToken=%s", AccessToken))
+	resp1, err = client.Do(request)
+	if err != nil {
+		log.Fatal(err)
+	}
+	var omadaApiSitesResponse OmadaApiSitesResponse
+	json.NewDecoder(resp1.Body).Decode(&omadaApiSitesResponse)
+	for i := 0; i < len(omadaApiSitesResponse.Result.Data); i++ {
+		fmt.Printf("Name: %s, Id: %s\n", omadaApiSitesResponse.Result.Data[i].Name, omadaApiSitesResponse.Result.Data[i].SiteId)
+	}
+	defer resp1.Body.Close()
 }
 
 func omadaapi_to_network(credentials *Credential, clients *OmadaApiClientsResponse, networkClients *[]NetworkClient) {
