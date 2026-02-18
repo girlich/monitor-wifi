@@ -52,11 +52,11 @@ type Eap225StatusClientUsers struct {
 type Eap225StatusClientUser struct {
 	Key               int    `yaml:"key"`
 	Hostname          string `yaml:"hostname"`
-	Radio             int    `yaml:"Radio"`
+	Radio             int32  `yaml:"Radio"`
 	MAC               string `yaml:"MAC"`
 	IP                string `yaml:"IP"`
 	SSID              string `yaml:"SSID"`
-	RSSI              int    `yaml:"RSSI"`
+	RSSI              int32  `yaml:"RSSI"`
 	Rate              string `yaml:"Rate"`
 	Down              int64  `yaml:"Down"`
 	Up                int64  `yaml:"Up"`
@@ -77,7 +77,7 @@ type IwStationDump struct {
 	Down           int64
 	DownPackets    int
 	DownErrors     int
-	RSSI           int
+	RSSI           int32
 	Rate           string
 	UpRate         string
 	Authorized     bool
@@ -151,12 +151,12 @@ type OmadaWebClientData struct {
 	WifiMode      int                     `json:"wifiMode"`
 	ApName        string                  `json:"apName"`
 	ApMac         string                  `json:"apMac"`
-	RadioId       int                     `json:"radioId"`
+	RadioId       int32                   `json:"radioId"`
 	Channel       int                     `json:"channel"`
 	RxRate        int                     `json:"rxRate"`
 	TxRate        int                     `json:"txRate"`
 	PowerSave     bool                    `json:"powerSave"`
-	RSSI          int                     `json:"rssi"`
+	RSSI          int32                   `json:"rssi"`
 	Snr           int                     `json:"snr"`
 	Activity      int                     `json:"activity"`
 	TrafficDown   int64                   `json:"trafficDown"`
@@ -174,13 +174,13 @@ type OmadaWebClientData struct {
 }
 
 type OmadaWebMultiLink struct {
-	RadioId       int                     `json:"radioId"`
+	RadioId       int32                   `json:"radioId"`
 	WifiMode      int                     `json:"wifiMode"`
 	Channel       int                     `json:"channel"`
 	RxRate        int                     `json:"rxRate"`
 	TxRate        int                     `json:"txRate"`
 	PowerSave     bool                    `json:"powerSave"`
-	RSSI          int                     `json:"rssi"`
+	RSSI          int32                   `json:"rssi"`
 	Snr           int                     `json:"snr"`
 	SignalLevel   int                     `json:"signalLevel"`
 	SignalRank    int                     `json:"signalRank"`
@@ -311,8 +311,8 @@ type OmadaApiClientData struct {
 }
 
 type WiFiParam struct {
-	Radio int    `yaml:"Radio"`
-	RSSI  int    `yaml:"RSSI"`
+	Radio int32  `yaml:"Radio"`
+	RSSI  int32  `yaml:"RSSI"`
 	Rate  string `yaml:"Rate"`
 }
 
@@ -482,7 +482,8 @@ func iw_get(credentials *Credential, clients *[]IwStationDump) {
 		}
 		res = reRSSI.FindStringSubmatch(lineS)
 		if res != nil {
-			isd.RSSI, _ = strconv.Atoi(res[1])
+			i64, _ := strconv.ParseInt(res[1], 10, 32)
+			isd.RSSI = int32(i64)
 		}
 		res = reRate.FindStringSubmatch(lineS)
 		if res != nil {
@@ -763,8 +764,49 @@ func omadaapi_get(credentials *Credential, clients *OmadaApiClientsResponse) {
 func omadaapi_to_network(credentials *Credential, clients *OmadaApiClientsResponse, networkClients *[]NetworkClient) {
 	// Loop over all clients
 	for _, clientData := range clients.Result.Data {
-		fmt.Printf(" Name: %s\n", clientData.Name);
-		fmt.Printf(" MAC: %s\n", clientData.MAC);
+		var nc NetworkClient
+
+		// Copy IP verbatim
+		nc.IP = clientData.IP
+
+		// Get canonical hostname from IP address
+		names, err := net.LookupAddr(nc.IP)
+		if err != nil {
+			nc.Hostname = "unknown host"
+		} else {
+			nc.Hostname = names[0]
+			if strings.HasSuffix(nc.Hostname, ".") {
+				nc.Hostname = nc.Hostname[:len(nc.Hostname)-1]
+			}
+		}
+
+		// Normalize MAC
+		nc.MAC = strings.Replace(strings.ToLower(clientData.MAC), "-", ":", 5)
+
+		// Linktype is WiFi
+		if clientData.Wireless {
+			nc.LinkType = "IEEE802_11"
+		} else {
+			nc.LinkType = "ETHERNET"
+		}
+
+		nc.WiFi.Radio = clientData.RadioId
+		nc.WiFi.RSSI = clientData.RSSI
+		nc.WiFi.Rate = fmt.Sprintf("%d", clientData.RxRate)
+
+		// Download bytes
+		nc.Down = clientData.TrafficDown
+
+		// Upload bytes
+		nc.Up = clientData.TrafficUp
+
+		// ApName is part of the result structure
+		nc.Upstream = clientData.ApName
+
+		// ActiveTime in seconds
+		nc.ActiveTime = clientData.Uptime
+
+		*networkClients = append(*networkClients, nc)
 	}
 }
 
