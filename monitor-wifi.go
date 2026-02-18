@@ -703,7 +703,7 @@ func omadaapi_get(credentials *Credential, clients *OmadaApiClientsResponse) {
 	var omadaApiInfoResponse OmadaApiInfoResponse
 	json.NewDecoder(resp1.Body).Decode(&omadaApiInfoResponse)
 	omadacId := omadaApiInfoResponse.Result.OmadacId
-	fmt.Printf("OmadacId: %s\n", omadacId)
+	// fmt.Printf("OmadacId: %s\n", omadacId)
 
 	// Authorize
 	u, err = url.Parse(fmt.Sprintf("https://%s:%d/openapi/authorize/token?grant_type=client_credentials", credentials.Host, credentials.Port))
@@ -723,7 +723,7 @@ func omadaapi_get(credentials *Credential, clients *OmadaApiClientsResponse) {
 	var omadaApiAuthorizeResponse OmadaApiAuthorizeResponse
 	json.NewDecoder(resp1.Body).Decode(&omadaApiAuthorizeResponse)
 	AccessToken := omadaApiAuthorizeResponse.Result.AccessToken
-	fmt.Printf("AccessToken: %s\n", AccessToken)
+	// fmt.Printf("AccessToken: %s\n", AccessToken)
 	defer resp1.Body.Close()
 
 	// Sites
@@ -740,9 +740,9 @@ func omadaapi_get(credentials *Credential, clients *OmadaApiClientsResponse) {
 	var omadaApiSitesResponse OmadaApiSitesResponse
 	json.NewDecoder(resp1.Body).Decode(&omadaApiSitesResponse)
 
-	// Loop over all sites
+	// Loop over all sites, TODO: the loop means, that only the last site will end up in "clients"
 	for _, siteData := range omadaApiSitesResponse.Result.Data {
-		fmt.Printf("Name: %s, Id: %s\n", siteData.Name, siteData.SiteId)
+		// fmt.Printf("Name: %s, Id: %s\n", siteData.Name, siteData.SiteId)
 
 		// Clients on this site
 		u, err = url.Parse(fmt.Sprintf("https://%s:%d/openapi/v1/%s/sites/%s/clients?page=1&pageSize=100", credentials.Host, credentials.Port, omadacId, siteData.SiteId))
