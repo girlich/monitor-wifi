@@ -738,14 +738,34 @@ func omadaapi_get(credentials *Credential, clients *OmadaApiClientsResponse) {
 	}
 	var omadaApiSitesResponse OmadaApiSitesResponse
 	json.NewDecoder(resp1.Body).Decode(&omadaApiSitesResponse)
-	for i := 0; i < len(omadaApiSitesResponse.Result.Data); i++ {
-		fmt.Printf("Name: %s, Id: %s\n", omadaApiSitesResponse.Result.Data[i].Name, omadaApiSitesResponse.Result.Data[i].SiteId)
+
+	// Loop over all sites
+	for _, siteData := range omadaApiSitesResponse.Result.Data {
+		fmt.Printf("Name: %s, Id: %s\n", siteData.Name, siteData.SiteId)
+
+		// Clients on this site
+		u, err = url.Parse(fmt.Sprintf("https://%s:%d/openapi/v1/%s/sites/%s/clients?page=1&pageSize=100", credentials.Host, credentials.Port, omadacId, siteData.SiteId))
+		request, err = http.NewRequest(
+				http.MethodGet,
+				u.String(),
+				http.NoBody)
+		request.Header.Add("Authorization", fmt.Sprintf("AccessToken=%s", AccessToken))
+		resp2, err := client.Do(request)
+		if err != nil {
+			log.Fatal(err)
+		}
+		json.NewDecoder(resp2.Body).Decode(clients)
+		defer resp2.Body.Close()
 	}
 	defer resp1.Body.Close()
 }
 
 func omadaapi_to_network(credentials *Credential, clients *OmadaApiClientsResponse, networkClients *[]NetworkClient) {
-
+	// Loop over all clients
+	for _, clientData := range clients.Result.Data {
+		fmt.Printf(" Name: %s\n", clientData.Name);
+		fmt.Printf(" MAC: %s\n", clientData.MAC);
+	}
 }
 
 func CollectNetworkClients(credentials []Credential, NetworkClients *[]NetworkClient) {
